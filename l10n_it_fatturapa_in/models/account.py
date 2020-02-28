@@ -206,7 +206,7 @@ class AccountInvoice(models.Model):
             or 0.0)
         for Riepilogo in FatturaBody.DatiBeniServizi.DatiRiepilogo:
             rounding = float(Riepilogo.Arrotondamento or 0.0)
-            amount_untaxed += float(Riepilogo.ImponibileImporto) + rounding
+            amount_untaxed += float(Riepilogo.ImponibileImporto) - rounding
         return amount_untaxed
 
     @api.model

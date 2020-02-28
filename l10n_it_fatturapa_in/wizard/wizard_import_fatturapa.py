@@ -1062,9 +1062,6 @@ class WizardImportFatturapa(models.TransientModel):
 
     def set_roundings(self, FatturaBody, invoice):
         rounding = 0.0
-        if FatturaBody.DatiBeniServizi.DatiRiepilogo:
-            for summary in FatturaBody.DatiBeniServizi.DatiRiepilogo:
-                rounding += float(summary.Arrotondamento or 0.0)
         if FatturaBody.DatiGenerali.DatiGeneraliDocumento:
             summary = FatturaBody.DatiGenerali.DatiGeneraliDocumento
             rounding += float(summary.Arrotondamento or 0.0)
