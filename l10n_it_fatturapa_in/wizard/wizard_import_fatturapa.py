@@ -1061,31 +1061,75 @@ class WizardImportFatturapa(models.TransientModel):
             invoice_data['art73'] = True
 
     def set_roundings(self, FatturaBody, invoice):
+        arrotondamenti_attivi_account_id = self.env.user.company_id.\
+            arrotondamenti_attivi_account_id
+        if not arrotondamenti_attivi_account_id:
+            raise UserError(_("Round up account is not set "
+                                "in Accounting Settings"))
+
+        arrotondamenti_passivi_account_id = self.env.user.company_id.\
+            arrotondamenti_passivi_account_id
+        if not arrotondamenti_passivi_account_id:
+            raise UserError(_("Round down account is not set "
+                                "in Accounting Settings"))
+
+        arrotondamenti_tax_id = self.env.user.company_id.\
+            arrotondamenti_tax_id
+        if not arrotondamenti_tax_id:
+            self.log_inconsistency(
+                _('Round up and down tax is not set')
+            )
+
+        if FatturaBody.DatiBeniServizi.DatiRiepilogo:
+            for summary in FatturaBody.DatiBeniServizi.DatiRiepilogo:
+                rounding = float(summary.Arrotondamento or 0.0)
+                if (rounding):
+                    prepared = self._prepare_generic_line_data(summary)
+                    # Compensate VAT and compensate the total back
+                    line_vals = {}
+                    line_vals2 = {}
+                    if rounding > 0.0:
+                        line_vals = {
+                            'invoice_id': invoice.id,
+                            'name': _("Rounding down"),
+                            'account_id': arrotondamenti_passivi_account_id.id,
+                            'price_unit': rounding,
+                            'invoice_line_tax_ids': prepared['invoice_line_tax_ids'],
+                        }
+                        line_vals2 = {
+                            'invoice_id': invoice.id,
+                            'name': _("Rounding down"),
+                            'account_id': arrotondamenti_passivi_account_id.id,
+                            'price_unit': -rounding,
+                            'invoice_line_tax_ids': [(6, 0, [arrotondamenti_tax_id.id])],
+                        }
+                    elif rounding < 0.0:
+                        line_vals = {
+                            'invoice_id': invoice.id,
+                            'name': _("Rounding up"),
+                            'account_id': arrotondamenti_attivi_account_id.id,
+                            'price_unit': rounding,
+                            'invoice_line_tax_ids': prepared['invoice_line_tax_ids'],
+                        }
+                        line_vals2 = {
+                            'invoice_id': invoice.id,
+                            'name': _("Rounding up"),
+                            'account_id': arrotondamenti_attivi_account_id.id,
+                            'price_unit': -rounding,
+                            'invoice_line_tax_ids': [(6, 0, [arrotondamenti_tax_id.id])],
+                        }
+
+                    if line_vals:
+                        self.env['account.invoice.line'].create(line_vals)
+                        self.env['account.invoice.line'].create(line_vals2)
+
+        # Manage document total rounding
         rounding = 0.0
         if FatturaBody.DatiGenerali.DatiGeneraliDocumento:
             summary = FatturaBody.DatiGenerali.DatiGeneraliDocumento
             rounding += float(summary.Arrotondamento or 0.0)
 
         if rounding:
-            arrotondamenti_attivi_account_id = self.env.user.company_id.\
-                arrotondamenti_attivi_account_id
-            if not arrotondamenti_attivi_account_id:
-                raise UserError(_("Round up account is not set "
-                                  "in Accounting Settings"))
-
-            arrotondamenti_passivi_account_id = self.env.user.company_id.\
-                arrotondamenti_passivi_account_id
-            if not arrotondamenti_passivi_account_id:
-                raise UserError(_("Round down account is not set "
-                                  "in Accounting Settings"))
-
-            arrotondamenti_tax_id = self.env.user.company_id.\
-                arrotondamenti_tax_id
-            if not arrotondamenti_tax_id:
-                self.log_inconsistency(
-                    _('Round up and down tax is not set')
-                )
-
             line_vals = {}
             if rounding > 0.0:
                 line_vals = {
